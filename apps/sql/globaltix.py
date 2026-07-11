@@ -1,7 +1,7 @@
 import os
 import uuid
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from contextlib import contextmanager
 from decimal import Decimal
 
@@ -78,8 +78,8 @@ class Event(Base):
     price = Column(Numeric(10, 2), nullable=False)
     currency = Column(String(3), default="USD")
     status = Column(String(20), default="active")  # active, cancelled, completed
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=datetime.utcnow)
 
     tickets = relationship("Ticket", back_populates="event", lazy="dynamic")
 
@@ -140,7 +140,7 @@ class Booking(Base):
     payment_id = Column(String(100), nullable=True)
     payment_method = Column(String(50), nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (
         Index("idx_booking_user", "user_id"),
@@ -169,6 +169,21 @@ class RegionInventory(Base):
         Index("idx_region_inventory_event_region", "event_id", "region", unique=True),
     )
 
+class LatencyTest(Base):
+    __tablename__ = "latency_tests"
+    id = Column(String(36), primary_key=True)
+    region = Column(String(20), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class ProofBooking(Base):
+    __tablename__ = "proof_bookings"
+    id = Column(String(36), primary_key=True)
+    event_id = Column(String(100), nullable=False)
+    user_id = Column(String(100), nullable=False)
+    region = Column(String(20), nullable=False)
+    method = Column(String(10), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 # ============== DATABASE CONNECTION MANAGER ==============
 class DatabaseManager:
@@ -247,6 +262,9 @@ class DatabaseManager:
 
 
 db = DatabaseManager()
+
+def SessionLocal():
+    return db.session_factories[db.get_local_region()]()
 
 
 # ============== TICKET BOOKING SERVICE ==============
@@ -894,6 +912,8 @@ def init_app():
     db.create_tables()
     logger.info(f"GlobalTix initialized in region: {db.get_local_region()}")
 
+from proof import proof_bp
+app.register_blueprint(proof_bp)
 
 if __name__ == "__main__":
     init_app()
