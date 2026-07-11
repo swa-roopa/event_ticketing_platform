@@ -4,7 +4,7 @@ import time
 import statistics
 import boto3
 from datetime import datetime, timezone
-from boto3.dynamodb.conditions import Attr
+from boto3.dynamodb.conditions import Attr, Key
 
 CURRENT_REGION = os.getenv("AWS_REGION", "us-east-1")
 IS_PRIMARY = CURRENT_REGION == "us-east-1"
@@ -30,11 +30,9 @@ def reserve_ticket(data: dict) -> dict:
     ticket_id = data.get("ticket_id")
 
     if not ticket_id:
-        result = tickets_table.query(
-            KeyConditionExpression="event_id = :eid",
-            FilterExpression=Attr("status").eq("available"),
-            ExpressionAttributeValues={":eid": event_id},
-            Limit=1,
+        result = table.query(
+            IndexName="user_id-index",
+            KeyConditionExpression=Key("user_id").eq(user_id),
         )
         items = result.get("Items", [])
         if not items:
