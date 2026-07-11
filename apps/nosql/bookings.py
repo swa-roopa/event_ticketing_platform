@@ -30,9 +30,10 @@ def reserve_ticket(data: dict) -> dict:
     ticket_id = data.get("ticket_id")
 
     if not ticket_id:
-        result = table.query(
-            IndexName="user_id-index",
-            KeyConditionExpression=Key("user_id").eq(user_id),
+        result = tickets_table.query(
+            KeyConditionExpression=Key("event_id").eq(event_id),
+            FilterExpression=Attr("status").eq("available"),
+            Limit=1,
         )
         items = result.get("Items", [])
         if not items:
@@ -107,8 +108,7 @@ def get_user_bookings(user_id: str) -> dict:
     table = _table("BOOKINGS_TABLE")
     result = table.query(
         IndexName="user_id-index",
-        KeyConditionExpression="user_id = :uid",
-        ExpressionAttributeValues={":uid": user_id},
+        KeyConditionExpression=Key("user_id").eq(user_id),
     )
 
     return {
