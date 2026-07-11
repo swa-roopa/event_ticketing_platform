@@ -1,0 +1,100 @@
+version: '3.8'
+
+services:
+  # Primary Region Application (us-east-1)
+  globaltix-primary:
+    build: ./app
+    container_name: globaltix-primary
+    ports:
+      - "5000:5000"
+    environment:
+      - AWS_REGION=us-east-1
+      - DB_SECRET_NAME=globaltix/database/credentials
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Secondary Region Application (us-east-2)
+  globaltix-secondary:
+    build: ./app
+    container_name: globaltix-secondary
+    ports:
+      - "5001:5000"
+    environment:
+      - AWS_REGION=us-east-2
+      - DB_SECRET_NAME=globaltix/database/credentials
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+# ============== LOCAL DEVELOPMENT ==============
+# Use: docker-compose --profile local up
+
+  mysql-local:
+    image: mysql:8.0
+    container_name: globaltix-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=globaltix
+      - MYSQL_USER=globaltix_admin
+      - MYSQL_PASSWORD=localpassword
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - local
+
+  globaltix-primary-local:
+    build: ./app
+    container_name: globaltix-primary-local
+    ports:
+      - "5000:5000"
+    environment:
+      - AWS_REGION=us-east-1
+      - USE_SECRETS_MANAGER=false
+      - PRIMARY_DB_HOST=mysql-local
+      - SECONDARY_DB_HOST=mysql-local
+      - DB_PORT=3306
+      - DB_NAME=globaltix
+      - DB_USER=globaltix_admin
+      - DB_PASSWORD=localpassword
+    depends_on:
+      mysql-local:
+        condition: service_healthy
+    profiles:
+      - local
+
+  globaltix-secondary-local:
+    build: ./app
+    container_name: globaltix-secondary-local
+    ports:
+      - "5001:5000"
+    environment:
+      - AWS_REGION=us-east-2
+      - USE_SECRETS_MANAGER=false
+      - PRIMARY_DB_HOST=mysql-local
+      - SECONDARY_DB_HOST=mysql-local
+      - DB_PORT=3306
+      - DB_NAME=globaltix
+      - DB_USER=globaltix_admin
+      - DB_PASSWORD=localpassword
+    depends_on:
+      mysql-local:
+        condition: service_healthy
+    profiles:
+      - local
+
+volumes:
+  mysql_data:
