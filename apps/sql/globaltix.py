@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from decimal import Decimal
 
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from sqlalchemy import (
     create_engine, Column, String, DateTime, Integer,
     ForeignKey, Numeric, Index, text
@@ -16,6 +17,7 @@ from sqlalchemy.pool import QueuePool
 # ============== APPLICATION SETUP ==============
 app = Flask(__name__)
 app.config["APP_NAME"] = "GlobalTix"
+CORS(app)
 Base = declarative_base()
 
 logging.basicConfig(
@@ -27,7 +29,7 @@ logger = logging.getLogger("globaltix")
 
 # ============== CONFIGURATION ==============
 # Import secrets module for Secrets Manager integration
-from secrets import get_db_config, get_all_db_endpoints
+from db_config import get_db_config, get_all_db_endpoints
 
 
 class Config:
@@ -915,6 +917,8 @@ def init_app():
 from proof import proof_bp
 app.register_blueprint(proof_bp)
 
+init_app()
+
 if __name__ == "__main__":
-    init_app()
+    app.run(host="0.0.0.0", port=5000, debug=True)
     app.run(host="0.0.0.0", port=5000, debug=True)

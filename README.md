@@ -1,269 +1,326 @@
-# GlobalTix - Event Ticketing Platform
+# GlobalTix — Active-Active Multi-Region: SQL vs NoSQL
 
-Active-Active Multi-Region application with Aurora MySQL Global Database.
+A proof-of-concept event ticketing platform that demonstrates — with real latency numbers — why **Aurora Global DB with write forwarding is NOT true active-active**, while **DynamoDB Global Tables IS**.
+
+> This repo accompanies the blog post: *Active-Active Multi-Region on AWS: SQL vs NoSQL*
+
+---
+
+## The Point
+
+"Active-active" means every region can accept writes **locally**. AWS Aurora Global DB has a feature called *write forwarding* that makes it look like secondary regions accept writes — but under the hood every write still travels to the single primary region (us-east-1) before being committed. That is active-**passive**, not active-active.
+
+DynamoDB Global Tables writes locally in whichever region receives the request. No forwarding, no cross-region round trip.
+
+This app lets you see the difference live:
+
+| | SQL (Aurora Global DB) | NoSQL (DynamoDB Global Tables) |
+|---|---|---|
+| Write from primary (us-east-1) | ~5 ms | ~5 ms |
+| Write from secondary (us-east-2) | **~80–120 ms** (forwarded) | ~5 ms (local) |
+| Conflict handling | Application-level locking | Conditional writes (`ConditionExpression`) |
+| True active-active? | **No** | **Yes** |
+
+---
 
 ## Architecture
 
 ```
-                         ┌──────────────────────────────────┐
-                         │           Route 53               │
-                         │    (Latency-based routing)       │
-                         └───────────────┬──────────────────┘
-                                         │
-              ┌──────────────────────────┴──────────────────────────┐
-              │                                                      │
-              ▼                                                      ▼
-┌─────────────────────────────┐                    ┌─────────────────────────────┐
-│       US-EAST-1             │                    │       US-EAST-2             │
-│    (Primary Region)         │                    │   (Secondary Region)        │
-│                             │                    │                             │
-│  ┌───────────────────────┐  │                    │  ┌───────────────────────┐  │
-│  │    GlobalTix App      │  │                    │  │    GlobalTix App      │  │
-│  │    (Flask API)        │  │                    │  │    (Flask API)        │  │
-│  └───────────┬───────────┘  │                    │  └───────────┬───────────┘  │
-│              │              │                    │              │              │
-│  ┌───────────▼───────────┐  │   Global Database  │  ┌───────────▼───────────┐  │
-│  │   Aurora MySQL        │  │◄──────────────────►│  │   Aurora MySQL        │  │
-│  │   (Writer)            │  │   <1s replication  │  │   (Write Forwarding)  │  │
-│  └───────────────────────┘  │                    │  └───────────────────────┘  │
-│                             │                    │                             │
-│  ┌───────────────────────┐  │    Replication     │  ┌───────────────────────┐  │
-│  │   Secrets Manager     │◄─┼────────────────────┼─►│   Secrets Manager     │  │
-│  │   (Primary)           │  │                    │  │   (Replica)           │  │
-│  └───────────────────────┘  │                    │  └───────────────────────┘  │
-│                             │                    │                             │
-└─────────────────────────────┘                    └─────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                        Frontend (Next.js)                            │
+│                        localhost:3000                                │
+└──────┬────────────────────────────────────┬───────────────────────┘
+       │                                    │
+       ▼                                    ▼
+┌──────────────────────┐        ┌──────────────────────┐
+│   SQL Panel          │        │   NoSQL Panel        │
+│                      │        │                      │
+│  sql-primary :5000   │        │  nosql-primary :5002 │
+│  sql-secondary :5001 │        │  nosql-secondary:5003│
+└──────────────────────┘        └──────────────────────┘
+       │                                    │
+       ▼                                    ▼
+┌──────────────────┐             ┌──────────────────────┐
+│  MySQL (local)   │             │  DynamoDB Local      │
+│  Both sql-*      │             │  (shared, :8000)     │
+│  point here      │             │  Both nosql-*        │
+│  (simulates      │             │  point here          │
+│  write forward)  │             │  (simulates local    │
+└──────────────────┘             │   writes)            │
+                                 └──────────────────────┘
 ```
 
-## Features
+**In production (AWS):**
+- `sql-secondary` → Aurora secondary cluster → write forwarded to Aurora primary (us-east-1) → **+80ms**
+- `nosql-secondary` → DynamoDB local replica in us-east-2 → **+0ms**
 
-- **Active-Active Multi-Region**: Both regions handle reads AND writes
-- **Write Forwarding**: Secondary region forwards writes to primary automatically
-- **Conflict-Free Design**: UUID keys, optimistic locking, SKIP LOCKED queries
-- **Secrets Manager**: Credentials auto-replicated across regions
-- **Auto-scaling**: Aurora Serverless v2 scales 0.5 to 32 ACUs
+---
 
 ## Project Structure
 
 ```
 event_ticketing_platform/
-├── README.md
-├── docker-compose.yml
-├── app/
-│   ├── globaltix.py        # Main Flask application
-│   ├── secrets.py          # Secrets Manager integration
-│   ├── test_api.py         # API test script
-│   ├── requirements.txt
-│   ├── Dockerfile
-│   └── .env.example
-└── infra/
-    ├── main.tf             # Providers, variables
-    ├── networking.tf       # VPCs, subnets, security groups
-    ├── aurora.tf           # Aurora Global Database
-    ├── secrets.tf          # Secrets Manager + replication
-    ├── outputs.tf          # Endpoints, connection info
-    └── terraform.tfvars.example
+├── docker-compose.yml          # One command to run everything locally
+├── apps/
+│   ├── sql/
+│   │   ├── globaltix.py        # Flask app — events, bookings, region inventory
+│   │   ├── proof.py            # Blueprint: /proof/write-latency, /proof/book-sync, /proof/book-async
+│   │   ├── booking_processor.py# Lambda handler for async SQS booking
+│   │   ├── secrets.py          # Secrets Manager / local env fallback
+│   │   ├── Dockerfile
+│   │   └── requirements.txt
+│   └── nosql/
+│       ├── handler.py          # Lambda entrypoint
+│       ├── events.py           # DynamoDB event CRUD
+│       ├── bookings.py         # Conditional writes — conflict detection
+│       ├── local_runner.py     # Flask wrapper for local Lambda testing
+│       ├── Dockerfile
+│       └── requirements.txt
+├── frontend/
+│   ├── app/
+│   │   ├── page.tsx            # Two-panel layout
+│   │   └── layout.tsx
+│   └── components/
+│       ├── RegionPanel.tsx     # Region toggle, latency test, sync/async booking
+│       └── LatencyBadge.tsx    # Color-coded ms badge
+├── infra/
+│   ├── modules/
+│   │   ├── networking/         # VPC + subnets for both regions (multi-provider module)
+│   │   ├── database-sql/       # Aurora Global DB + write forwarding
+│   │   ├── database-nosql/     # DynamoDB Global Tables (4 tables)
+│   │   ├── queue/              # SQS FIFO + DLQ
+│   │   ├── api/                # Lambda + API Gateway
+│   │   ├── iam/                # Lambda execution roles
+│   │   ├── secrets/            # Secrets Manager with cross-region replica
+│   │   └── monitoring/         # CloudWatch dashboard + alarms
+│   └── environments/
+│       ├── primary-us-east-1/  # Full stack deploy
+│       └── secondary-us-east-2/# Queue + Lambda only (reads primary outputs)
+└── docs/screenshots/           # Proof screenshots for the blog
 ```
 
-## Prerequisites
+---
 
-- AWS CLI configured with appropriate permissions
-- Terraform >= 1.5.0
-- Docker & Docker Compose
-- Python 3.11+ (for local development)
+## Quick Start (Local)
 
-## Quick Start
-
-### 1. Deploy Infrastructure
+**Prerequisites:** Docker, Docker Compose, Node.js 20+
 
 ```bash
-cd infra
+# 1. Clone and start all backend services
+git clone <this-repo>
+cd event_ticketing_platform
+docker-compose up --build
 
-# Initialize Terraform
-terraform init
+# Services started:
+# mysql            → :3306
+# dynamodb-local   → :8000
+# sql-primary      → :5000  (AWS_REGION=us-east-1)
+# sql-secondary    → :5001  (AWS_REGION=us-east-2)
+# nosql-primary    → :5002  (AWS_REGION=us-east-1)
+# nosql-secondary  → :5003  (AWS_REGION=us-east-2)
 
-# Review the plan
-terraform plan
-
-# Deploy (password auto-generated, stored in Secrets Manager)
-terraform apply
+# 2. Start the frontend
+cd frontend
+npm install
+npm run dev
+# → http://localhost:3000
 ```
 
-### 2. Run Application
+---
 
-**Production (with Secrets Manager):**
+## Proof Endpoints
+
+### SQL — `/proof/*`
+
+| Endpoint | Method | What it shows |
+|---|---|---|
+| `/proof/write-latency?samples=10` | GET | avg / p50 / p99 write latency + `write_forwarding_enabled` flag |
+| `/proof/book-sync` | POST | Naive booking — user waits for the full write round trip |
+| `/proof/book-async` | POST | Queues write via SQS — returns in ~3ms with `status: pending` |
+| `/proof/book-status/<id>` | GET | Poll DynamoDB for async booking result |
+
+Example — run latency test against the secondary region:
+
 ```bash
-# From project root
-docker-compose up -d
-
-# Primary region: http://localhost:5000
-# Secondary region: http://localhost:5001
+curl "http://localhost:5001/proof/write-latency?samples=10"
+# {
+#   "region": "us-east-2",
+#   "avg_write_ms": 94.3,
+#   "p50_write_ms": 91.2,
+#   "p99_write_ms": 118.7,
+#   "write_forwarding_enabled": true,
+#   "explanation": "Secondary writes are forwarded to us-east-1 — this is NOT active-active"
+# }
 ```
 
-**Local Development (with local MySQL):**
-```bash
-docker-compose --profile local up -d
+### NoSQL — `/events/<id>/reserve`
 
-# Primary region: http://localhost:5000
-# Secondary region: http://localhost:5001
-```
-
-### 3. Test the API
+DynamoDB conditional write — rejects double-booking atomically without any locking:
 
 ```bash
-cd app
-pip install requests
-
-# Test single region
-python test_api.py --region us
-
-# Test both regions with concurrent bookings
-python test_api.py --both
-```
-
-## API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/health` | Health check with DB connectivity |
-| GET | `/events` | List upcoming events |
-| POST | `/events` | Create new event |
-| GET | `/events/{id}` | Get event details |
-| GET | `/events/{id}/tickets` | Get available tickets |
-| POST | `/events/{id}/reserve` | Reserve a ticket |
-| DELETE | `/reservations/{id}` | Cancel reservation |
-| POST | `/bookings` | Complete ticket purchase |
-| GET | `/bookings/{number}` | Get booking by number |
-| GET | `/users/{id}/bookings` | Get user's bookings |
-| GET | `/stats` | Regional booking statistics |
-
-## API Examples
-
-### Create Event
-```bash
-curl -X POST http://localhost:5000/events \
+curl -X POST http://localhost:5003/events/demo-event/reserve \
   -H "Content-Type: application/json" \
-  -d '{
-    "name": "Rock Concert 2024",
-    "venue": "Madison Square Garden",
-    "city": "New York",
-    "country": "USA",
-    "event_date": "2024-12-31T20:00:00",
-    "total_tickets": 1000,
-    "price": "99.99"
-  }'
+  -d '{"event_id": "demo-event", "user_id": "demo-user"}'
+# {
+#   "success": true,
+#   "write_executed_in": "us-east-2",
+#   "write_latency_ms": 4.8
+# }
 ```
 
-### Reserve Ticket
+---
+
+## How Write Forwarding Works (and Why It's Not Active-Active)
+
+```
+User in us-east-2 sends a write:
+
+  App (us-east-2)
+      │
+      ▼
+  Aurora Secondary Cluster (us-east-2)   ← connected locally
+      │
+      │  write forwarded over the wire (~80ms)
+      ▼
+  Aurora Primary Cluster (us-east-1)     ← single writer
+      │
+      │  replication back
+      ▼
+  Aurora Secondary Cluster (us-east-2)
+      │
+      ▼
+  Response to user    ← total: ~80–120ms extra
+```
+
+With `enable_global_write_forwarding = true` in Terraform, the secondary _accepts_ the connection — but the write is serialized through us-east-1. There is exactly one writer. That is the definition of active-passive.
+
+---
+
+## How DynamoDB Global Tables IS Active-Active
+
+```
+User in us-east-2 sends a write:
+
+  App (us-east-2)
+      │
+      ▼
+  DynamoDB replica in us-east-2          ← writes here directly
+      │
+      │  async replication (~1s)
+      ▼
+  DynamoDB replica in us-east-1
+
+  Response to user    ← total: ~5ms
+```
+
+Conflicts are caught by the DynamoDB SDK:
+
+```python
+tickets_table.update_item(
+    ConditionExpression=Attr("status").eq("available"),
+    ...
+)
+# raises ConditionalCheckFailedException if another region already booked it
+```
+
+No cross-region round trip. No single writer. That is true active-active.
+
+---
+
+## What If You Must Use SQL for Active-Active?
+
+If you need relational semantics with true active-active writes across regions, your AWS-managed options run out fast. Aurora Global DB write forwarding adds latency. Aurora DSQL is not production-ready for general workloads.
+
+The realistic paths:
+
+1. **Stay with Aurora + SQS buffer** — queue writes from the secondary, accept eventual consistency, poll for status. This app's `/proof/book-async` demonstrates this pattern.
+2. **CockroachDB / YugabyteDB on EKS** — distributed SQL with native active-active. Not AWS managed.
+3. **Redesign to NoSQL** — for event ticketing, DynamoDB's access patterns fit naturally (event\_id hash key, ticket\_id range key, conditional writes for inventory).
+
+---
+
+## Infrastructure (Terraform)
+
+The `infra/` directory contains production-ready Terraform modules. Each multi-region module uses `configuration_aliases` to accept two AWS providers:
+
+```hcl
+# infra/modules/networking/main.tf
+terraform {
+  required_providers {
+    aws = {
+      source                = "hashicorp/aws"
+      configuration_aliases = [aws.primary, aws.secondary]
+    }
+  }
+}
+```
+
+Deploy order:
+
 ```bash
-curl -X POST http://localhost:5000/events/{event_id}/reserve \
-  -H "Content-Type: application/json" \
-  -d '{"user_id": "user-123"}'
+# 1. Primary region (creates Aurora Global Cluster, DynamoDB tables, etc.)
+cd infra/environments/primary-us-east-1
+terraform init && terraform apply
+
+# 2. Secondary region (reads primary outputs via terraform_remote_state)
+cd infra/environments/secondary-us-east-2
+terraform init && terraform apply
 ```
 
-### Complete Booking
-```bash
-curl -X POST http://localhost:5000/bookings \
-  -H "Content-Type: application/json" \
-  -d '{
-    "ticket_id": "ticket-uuid",
-    "user_id": "user-123",
-    "user_email": "user@example.com",
-    "payment_id": "PAY-ABC123"
-  }'
-```
+**Estimated AWS cost (minimum, both regions running):**
 
-### Check Regional Stats
-```bash
-# From Primary region
-curl http://localhost:5000/stats
+| Component | $/month |
+|---|---|
+| Aurora Global DB (0.5 ACU × 2 regions) | ~$90 |
+| DynamoDB (on-demand, low traffic) | ~$5 |
+| SQS FIFO + Lambda | ~$2 |
+| VPC + NAT Gateway | ~$70 |
+| Secrets Manager | ~$1 |
+| **Total** | **~$168** |
 
-# From Secondary region
-curl http://localhost:5001/stats
-```
+---
 
 ## Environment Variables
 
-**Production (only 2 required):**
+**SQL app:**
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `AWS_REGION` | Current region for Secrets Manager | `us-east-1` |
-| `DB_SECRET_NAME` | Secrets Manager secret name | `globaltix/database/credentials` |
+| Variable | Local | Production |
+|---|---|---|
+| `USE_SECRETS_MANAGER` | `false` | `true` |
+| `AWS_REGION` | `us-east-1` / `us-east-2` | set by runtime |
+| `PRIMARY_DB_HOST` | `mysql` | from Secrets Manager |
+| `DB_NAME` | `globaltix` | from Secrets Manager |
+| `DB_USER` / `DB_PASSWORD` | see docker-compose | from Secrets Manager |
+| `BOOKING_STATUS_TABLE` | `globaltix-booking-status` | same |
 
-**Local Development:**
+**NoSQL app:**
 
-| Variable | Description |
-|----------|-------------|
-| `USE_SECRETS_MANAGER` | Set to `false` for local dev |
-| `PRIMARY_DB_HOST` | Primary DB host |
-| `SECONDARY_DB_HOST` | Secondary DB host |
-| `DB_USER` | Database username |
-| `DB_PASSWORD` | Database password |
+| Variable | Local | Production |
+|---|---|---|
+| `AWS_ENDPOINT_URL` | `http://dynamodb-local:8000` | not set (uses real AWS) |
+| `EVENTS_TABLE` | `globaltix-events` | same |
+| `TICKETS_TABLE` | `globaltix-tickets` | same |
+| `BOOKINGS_TABLE` | `globaltix-bookings` | same |
 
-## How Active-Active Works
+---
 
-### Write Forwarding
+## Monitoring (Production)
 
-When a write happens in us-east-2 (secondary):
+Key CloudWatch metrics:
 
-1. App connects to local Aurora cluster
-2. Aurora detects it's a write operation
-3. Write is forwarded to us-east-1 (primary)
-4. Primary executes and replicates back
-5. Total latency: ~50-100ms additional
+- `AuroraGlobalDBReplicationLag` — watch this spike when write load increases on the secondary
+- `ConditionalCheckFailedRequests` (DynamoDB) — successful conflict detection
+- `ApproximateNumberOfMessagesVisible` (SQS) — async booking queue depth
+- `Errors` (Lambda booking processor) — failed async writes
 
-### Conflict Prevention
-
-| Strategy | Implementation |
-|----------|----------------|
-| UUID Primary Keys | No auto-increment conflicts |
-| Optimistic Locking | `version` column on all tables |
-| SKIP LOCKED | Parallel reservations without blocking |
-| Region Tracking | `booking_region` field for analytics |
-
-### Replication Lag
-
-- Typical: < 1 second
-- Monitor via CloudWatch: `AuroraGlobalDBReplicationLag`
-
-## Infrastructure Costs (Estimated)
-
-| Component | Cost/Month |
-|-----------|------------|
-| Aurora Serverless v2 (min 0.5 ACU x 2 regions) | ~$90 |
-| Secrets Manager (1 secret, 2 regions) | ~$1 |
-| VPC, NAT, etc. | ~$70 |
-| **Total (minimum)** | **~$160** |
-
-*Costs scale with usage. Aurora scales to 32 ACU per region under load.*
-
-## Monitoring
-
-Key CloudWatch metrics to monitor:
-
-- `AuroraGlobalDBReplicationLag` - Cross-region replication delay
-- `DatabaseConnections` - Connection pool usage
-- `CPUUtilization` - Aurora compute usage
-- `ServerlessDatabaseCapacity` - Current ACU allocation
+---
 
 ## Cleanup
 
 ```bash
-cd infra
-terraform destroy
+# Tear down secondary first (depends on primary outputs)
+cd infra/environments/secondary-us-east-2 && terraform destroy
+
+# Then primary
+cd infra/environments/primary-us-east-1 && terraform destroy
 ```
-
-## Troubleshooting
-
-**Write forwarding not working:**
-- Verify `enable_global_write_forwarding = true` in aurora.tf
-- Check security group allows traffic between regions
-
-**Secrets Manager access denied:**
-- Ensure IAM role has `secretsmanager:GetSecretValue` permission
-- Verify secret is replicated to the application's region
-
-**High replication lag:**
-- Check network connectivity between regions
-- Review write volume - consider read replicas for read-heavy workloads

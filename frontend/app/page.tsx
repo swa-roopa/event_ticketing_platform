@@ -1,8 +1,8 @@
 import RegionPanel from "@/components/RegionPanel";
 
 export default function Home() {
-  const sqlPrimary   = process.env.NEXT_PUBLIC_SQL_PRIMARY_URL   ?? "http://localhost:5000"
-  const sqlSecondary = process.env.NEXT_PUBLIC_SQL_SECONDARY_URL ?? "http://localhost:5001"
+  const sqlPrimary   = process.env.NEXT_PUBLIC_SQL_PRIMARY_URL   ?? "http://localhost:5010"
+  const sqlSecondary = process.env.NEXT_PUBLIC_SQL_SECONDARY_URL ?? "http://localhost:5011"
   const nosqlPrimary   = process.env.NEXT_PUBLIC_NOSQL_PRIMARY_URL   ?? "http://localhost:5002"
   const nosqlSecondary = process.env.NEXT_PUBLIC_NOSQL_SECONDARY_URL ?? "http://localhost:5003"
 
