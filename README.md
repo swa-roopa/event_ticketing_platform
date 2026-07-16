@@ -83,21 +83,13 @@ event_ticketing_platform/
 │   └── components/
 │       ├── RegionPanel.tsx     # Region toggle, latency test, sync/async booking
 │       └── LatencyBadge.tsx    # Color-coded ms badge
-├── infra/
-│   ├── modules/
-│   │   ├── networking/         # VPC + subnets for both regions (multi-provider module)
-│   │   ├── database-sql/       # Aurora Global DB + write forwarding
-│   │   ├── database-nosql/     # DynamoDB Global Tables (4 tables)
-│   │   ├── queue/              # SQS FIFO + DLQ
-│   │   ├── api/                # Lambda + API Gateway
-│   │   ├── iam/                # Lambda execution roles
-│   │   ├── secrets/            # Secrets Manager with cross-region replica
-│   │   └── monitoring/         # CloudWatch dashboard + alarms
-│   └── environments/
-│       ├── primary-us-east-1/  # Full stack deploy
-│       └── secondary-us-east-2/# Queue + Lambda only (reads primary outputs)
 └── docs/screenshots/           # Proof screenshots for the blog
 ```
+
+> This is a **local POC** — everything runs via `docker-compose` (MySQL stands in
+> for Aurora, `dynamodb-local` for DynamoDB Global Tables). There is no cloud
+> deployment; the point is to *demonstrate the behavioral difference* between the
+> two write models, not to run them on AWS.
 
 ---
 
@@ -239,44 +231,12 @@ The realistic paths:
 
 ---
 
-## Infrastructure (Terraform)
+## Deployment
 
-The `infra/` directory contains production-ready Terraform modules. Each multi-region module uses `configuration_aliases` to accept two AWS providers:
-
-```hcl
-# infra/modules/networking/main.tf
-terraform {
-  required_providers {
-    aws = {
-      source                = "hashicorp/aws"
-      configuration_aliases = [aws.primary, aws.secondary]
-    }
-  }
-}
-```
-
-Deploy order:
-
-```bash
-# 1. Primary region (creates Aurora Global Cluster, DynamoDB tables, etc.)
-cd infra/environments/primary-us-east-1
-terraform init && terraform apply
-
-# 2. Secondary region (reads primary outputs via terraform_remote_state)
-cd infra/environments/secondary-us-east-2
-terraform init && terraform apply
-```
-
-**Estimated AWS cost (minimum, both regions running):**
-
-| Component | $/month |
-|---|---|
-| Aurora Global DB (0.5 ACU × 2 regions) | ~$90 |
-| DynamoDB (on-demand, low traffic) | ~$5 |
-| SQS FIFO + Lambda | ~$2 |
-| VPC + NAT Gateway | ~$70 |
-| Secrets Manager | ~$1 |
-| **Total** | **~$168** |
+This POC is **local-only** — it runs entirely through `docker-compose` (see
+[Quick Start](#quick-start-local)). MySQL stands in for Aurora Global Database
+and `dynamodb-local` for DynamoDB Global Tables, which is enough to demonstrate
+the write-model difference. There is no cloud/Terraform deployment.
 
 ---
 
@@ -304,23 +264,18 @@ terraform init && terraform apply
 
 ---
 
-## Monitoring (Production)
+## What You'd Watch in Production
 
-Key CloudWatch metrics:
+If this ran on real AWS, the key signals would be:
 
-- `AuroraGlobalDBReplicationLag` — watch this spike when write load increases on the secondary
+- `AuroraGlobalDBReplicationLag` — spikes when write load increases on the secondary
 - `ConditionalCheckFailedRequests` (DynamoDB) — successful conflict detection
 - `ApproximateNumberOfMessagesVisible` (SQS) — async booking queue depth
-- `Errors` (Lambda booking processor) — failed async writes
 
 ---
 
 ## Cleanup
 
 ```bash
-# Tear down secondary first (depends on primary outputs)
-cd infra/environments/secondary-us-east-2 && terraform destroy
-
-# Then primary
-cd infra/environments/primary-us-east-1 && terraform destroy
+docker-compose down -v   # stop containers and remove the mysql volume
 ```

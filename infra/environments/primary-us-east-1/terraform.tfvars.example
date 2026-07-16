@@ -1,5 +1,0 @@
-app_name         = "globaltix"
-environment      = "prod"
-primary_region   = "us-east-1"
-secondary_region = "us-east-2"
-db_password      = "changeme"
