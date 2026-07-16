@@ -18,7 +18,7 @@ export default function AboutPage() {
               <h2 className="text-base font-bold text-gray-800 mb-3">The Blog Post Thesis</h2>
               <div className="bg-indigo-50 border-l-4 border-indigo-400 p-4 rounded-r mb-4">
                 <p className="text-sm text-indigo-800 font-medium">
-                  &ldquo;Everyone says Aurora Global Database supports active-active. Here&rsquo;s proof that it doesn&rsquo;t — and what actually is active-active.&rdquo;
+                  &ldquo;Everyone says Aurora Global Database supports active-active. Here&rsquo;s something that it does and doesn&rsquo;t — and what actually is active-active.&rdquo;
                 </p>
               </div>
               <div className="text-sm text-gray-600 space-y-3">

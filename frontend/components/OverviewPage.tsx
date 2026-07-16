@@ -32,19 +32,11 @@ function LatencyValue({ ms }: { ms: number | null }) {
   return <span className={`font-mono font-bold ${color}`}>{ms} ms</span>
 }
 
-function ConnectedBadge() {
-  return (
-    <span className="flex items-center gap-1.5 text-green-600 text-sm font-medium">
-      <span className="w-2 h-2 rounded-full bg-green-500 inline-block"></span>
-      Connected
-    </span>
-  )
-}
 
 function LatencyLineChart({ sqlSamples, nosqlSamples }: { sqlSamples: number[], nosqlSamples: number[] }) {
-  const width = 420
-  const height = 200
-  const pad = { top: 24, right: 12, bottom: 24, left: 36 }
+  const width = 520
+  const height = 100
+  const pad = { top: 22, right: 50, bottom: 18, left: 40 }
   const chartW = width - pad.left - pad.right
   const chartH = height - pad.top - pad.bottom
 
@@ -107,73 +99,48 @@ function LatencyLineChart({ sqlSamples, nosqlSamples }: { sqlSamples: number[], 
 }
 
 function WriteFlowDiagram({ isSql, isSecondary }: { isSql: boolean; isSecondary: boolean }) {
-  /* Layout (viewBox 340 × 110):
-     - Boxes span y=32..82 (height 50)
-     - Labels ABOVE boxes: y ≤ 26  → never overlap box content
-     - Labels BELOW boxes: y ≥ 90  → same
-     - Gap between region boxes: x=175..215 (40px) — arrows only, no text
+  /* Simple flat layout (viewBox 360 × 120):
+     - Nodes: single line region name inside, role/caption sits BELOW the box
+     - One accent color per diagram (blue for SQL, green for NoSQL)
+     - Arrow labels ABOVE, captions BELOW — no text touches the boxes
   */
-  if (isSql) {
-    return (
-      <svg viewBox="0 0 340 110" className="w-full">
-        <defs>
-          <marker id="wf-gray" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-            <path d="M0,0 L0,6 L6,3 z" fill="#6b7280" />
-          </marker>
-          <marker id="wf-red" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-            <path d="M0,0 L0,6 L6,3 z" fill="#ef4444" />
-          </marker>
-        </defs>
-        {/* Client */}
-        <rect x="10" y="42" width="60" height="28" rx="6" fill="#eff6ff" stroke="#3b82f6" strokeWidth="1.5"/>
-        <text x="40" y="60" textAnchor="middle" fontSize="10" fill="#1d4ed8">Client</text>
-        {/* US-East-2 (secondary — selected) */}
-        <rect x="90" y="32" width="85" height="50" rx="6" fill="#fef3c7" stroke="#f59e0b" strokeWidth="1.5"/>
-        <text x="132" y="52" textAnchor="middle" fontSize="9" fill="#92400e">US-East-2</text>
-        <text x="132" y="65" textAnchor="middle" fontSize="8" fill="#b45309">(Selected) ⚠</text>
-        {/* US-East-1 (primary writer) */}
-        <rect x="215" y="32" width="115" height="50" rx="6" fill="#dbeafe" stroke="#2563eb" strokeWidth="1.5"/>
-        <text x="272" y="52" textAnchor="middle" fontSize="9" fill="#1e40af">US-East-1</text>
-        <text x="272" y="65" textAnchor="middle" fontSize="8" fill="#1e40af">Primary Writer</text>
-        {/* Client → US-East-2 */}
-        <line x1="70" y1="56" x2="88" y2="56" stroke="#6b7280" strokeWidth="1.5" markerEnd="url(#wf-gray)"/>
-        {/* Write Fwd arrow (red) — label ABOVE boxes */}
-        <text x="195" y="22" textAnchor="middle" fontSize="8" fontWeight="600" fill="#ef4444">Write Forwarded →</text>
-        <line x1="175" y1="50" x2="213" y2="50" stroke="#ef4444" strokeWidth="1.5" markerEnd="url(#wf-red)"/>
-        {/* Response arrow (dashed) — label BELOW boxes */}
-        <line x1="213" y1="66" x2="175" y2="66" stroke="#6b7280" strokeWidth="1" strokeDasharray="3,2" markerEnd="url(#wf-gray)"/>
-        <text x="195" y="96" textAnchor="middle" fontSize="8" fill="#6b7280">← Response</text>
-      </svg>
-    )
-  }
+  const accent = isSql ? "#2563eb" : "#16a34a"
+  const flowLabel = isSql ? "Write forwarded →" : "Async replication →"
+
   return (
-    <svg viewBox="0 0 340 110" className="w-full">
+    <svg viewBox="0 0 360 120" className="w-full" fontFamily="ui-sans-serif, system-ui, sans-serif">
       <defs>
-        <marker id="wf-gray2" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-          <path d="M0,0 L0,6 L6,3 z" fill="#6b7280" />
-        </marker>
-        <marker id="wf-green" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-          <path d="M0,0 L0,6 L6,3 z" fill="#22c55e" />
+        <marker id={`wf-arrow-${isSql ? "s" : "n"}`} markerWidth="7" markerHeight="7" refX="5.5" refY="3.5" orient="auto">
+          <path d="M0,0 L0,7 L6.5,3.5 z" fill="#94a3b8" />
         </marker>
       </defs>
-      {/* Client */}
-      <rect x="10" y="42" width="60" height="28" rx="6" fill="#eff6ff" stroke="#3b82f6" strokeWidth="1.5"/>
-      <text x="40" y="60" textAnchor="middle" fontSize="10" fill="#1d4ed8">Client</text>
-      {/* US-East-2 (local write) */}
-      <rect x="90" y="32" width="85" height="50" rx="6" fill="#dcfce7" stroke="#16a34a" strokeWidth="1.5"/>
-      <text x="132" y="52" textAnchor="middle" fontSize="9" fill="#15803d">US-East-2</text>
-      <text x="132" y="64" textAnchor="middle" fontSize="8" fill="#15803d">✓ Write Local</text>
-      {/* US-East-1 (replicated) */}
-      <rect x="215" y="32" width="115" height="50" rx="6" fill="#dcfce7" stroke="#16a34a" strokeWidth="1.5"/>
-      <text x="272" y="52" textAnchor="middle" fontSize="9" fill="#15803d">US-East-1</text>
-      <text x="272" y="65" textAnchor="middle" fontSize="8" fill="#15803d">(Replicated)</text>
-      {/* Client → US-East-2 */}
-      <line x1="70" y1="56" x2="88" y2="56" stroke="#6b7280" strokeWidth="1.5" markerEnd="url(#wf-gray2)"/>
-      {/* Async replication arrow — label ABOVE boxes */}
-      <text x="195" y="22" textAnchor="middle" fontSize="8" fontWeight="600" fill="#16a34a">Async Replication →</text>
-      <line x1="175" y1="58" x2="213" y2="58" stroke="#22c55e" strokeWidth="1" strokeDasharray="4,2" markerEnd="url(#wf-green)"/>
-      {/* Background label BELOW boxes */}
-      <text x="195" y="96" textAnchor="middle" fontSize="8" fill="#16a34a">~300ms (background)</text>
+
+      {/* Nodes */}
+      <rect x="20" y="46" width="62" height="34" rx="8" fill="#ffffff" stroke="#cbd5e1" strokeWidth="1.5"/>
+      <text x="51" y="67" textAnchor="middle" fontSize="12" fontWeight="600" fill="#475569">Client</text>
+
+      <rect x="112" y="46" width="106" height="34" rx="8" fill="#ffffff" stroke={accent} strokeWidth="1.5"/>
+      <text x="165" y="67" textAnchor="middle" fontSize="12" fontWeight="600" fill={accent}>us-east-2</text>
+
+      <rect x="248" y="46" width="106" height="34" rx="8" fill="#ffffff" stroke={accent} strokeWidth="1.5"/>
+      <text x="301" y="67" textAnchor="middle" fontSize="12" fontWeight="600" fill={accent}>us-east-1</text>
+
+      {/* Arrows */}
+      <line x1="82" y1="63" x2="108" y2="63" stroke="#94a3b8" strokeWidth="1.75" markerEnd={`url(#wf-arrow-${isSql ? "s" : "n"})`}/>
+      <line x1="218" y1="63" x2="244" y2="63" stroke={accent} strokeWidth="1.75"
+        strokeDasharray={isSql ? undefined : "4,3"} markerEnd={`url(#wf-arrow-${isSql ? "s" : "n"})`}/>
+
+      {/* Flow label above the middle arrow */}
+      <text x="231" y="34" textAnchor="middle" fontSize="10" fontWeight="600" fill={accent}>{flowLabel}</text>
+
+      {/* Captions below the region boxes */}
+      <text x="165" y="98" textAnchor="middle" fontSize="9.5" fill="#64748b">{isSql ? "Selected region" : "Writes locally"}</text>
+      <text x="301" y="98" textAnchor="middle" fontSize="9.5" fill="#64748b">{isSql ? "Primary writer" : "Replicated copy"}</text>
+
+      {/* Sub-caption below the flow */}
+      <text x="231" y="112" textAnchor="middle" fontSize="9" fill="#94a3b8">
+        {isSql ? "user waits for round trip" : "~300ms · background"}
+      </text>
     </svg>
   )
 }
@@ -183,44 +150,28 @@ function TimelineViz({ sqlResult, nosqlResult, sqlRegion }: {
   nosqlResult: LatencyResult | null
   sqlRegion: "primary" | "secondary"
 }) {
-  const sqlAvg = sqlResult?.avg_write_ms ?? null
-  const nosqlAvg = nosqlResult?.avg_write_ms ?? null
+  const s = sqlResult
+  const n = nosqlResult
+  const isSec = sqlRegion === "secondary"
 
-  const sqlSteps = sqlAvg !== null
-    ? sqlRegion === "secondary"
-      ? [
-          { label: "Request Received", ms: 0 },
-          { label: "Forward to Primary", ms: 3 },
-          { label: "Commit on Primary", ms: Math.round(sqlAvg * 0.9) },
-          { label: "Response to Client", ms: Math.round(sqlAvg) },
-        ]
-      : [
-          { label: "Request Received", ms: 0 },
-          { label: "Commit Locally", ms: Math.round(sqlAvg * 0.8) },
-          { label: "Response to Client", ms: Math.round(sqlAvg) },
-        ]
-    : []
+  const steps: { label: string; sql: string; nosql: string; sqlBad?: boolean }[] = [
+    { label: "Received",    sql: s ? "0 ms" : "—",                                    nosql: n ? "0 ms" : "—" },
+    { label: "Forwarding",  sql: s && isSec ? `~3 ms` : "—",                          nosql: "—",               sqlBad: isSec && !!s },
+    { label: "DB Commit",   sql: s ? `${Math.round(s.avg_write_ms * 0.9)} ms` : "—",  nosql: n ? `${Math.round(n.avg_write_ms * 0.8)} ms` : "—" },
+    { label: "Response",    sql: s ? `${s.avg_write_ms} ms` : "—",                    nosql: n ? `${n.avg_write_ms} ms` : "—", sqlBad: !!s && s.avg_write_ms > 50 },
+    { label: "Replication", sql: "—",                                                  nosql: n ? `~${n.replication_lag_ms} ms` : "—" },
+  ]
 
-  const nosqlSteps = nosqlAvg !== null
-    ? [
-        { label: "Request Received", ms: 0 },
-        { label: "Commit Locally", ms: Math.round(nosqlAvg * 0.8) },
-        { label: "Response to Client", ms: Math.round(nosqlAvg) },
-        { label: "Replicated to Other Region", ms: Math.round(nosqlAvg) + 300 },
-      ]
-    : []
-
-  function StepRow({ steps, color }: { steps: { label: string; ms: number }[]; color: string }) {
+  function Row({ color, dotColor, values }: { color: string; dotColor: string; values: { val: string; bad?: boolean }[] }) {
     return (
-      <div className="flex items-center gap-1 flex-wrap">
-        {steps.map((s, i) => (
-          <div key={i} className="flex items-center gap-1">
-            <div className="flex flex-col items-center">
-              <span className={`text-xs font-mono ${color}`}>{s.ms} ms</span>
-              <div className={`w-2 h-2 rounded-full ${color === "text-blue-600" ? "bg-blue-500" : "bg-green-500"}`}></div>
-              <span className="text-xs text-gray-500 text-center max-w-16 leading-tight">{s.label}</span>
+      <div className="flex items-start">
+        {values.map((v, i) => (
+          <div key={i} className="flex items-center flex-1 min-w-0">
+            <div className="flex flex-col items-center flex-1">
+              <span className={`text-[10px] font-mono font-semibold ${v.bad ? "text-red-500" : color}`}>{v.val}</span>
+              <div className={`w-2 h-2 rounded-full my-1 ${dotColor}`}></div>
             </div>
-            {i < steps.length - 1 && <span className="text-gray-300 text-xs mb-4">→</span>}
+            {i < values.length - 1 && <div className="w-4 h-px bg-gray-200 flex-shrink-0 mb-2"></div>}
           </div>
         ))}
       </div>
@@ -229,23 +180,30 @@ function TimelineViz({ sqlResult, nosqlResult, sqlRegion }: {
 
   return (
     <div className="flex flex-col gap-3">
-      <div>
-        <div className="flex items-center gap-2 mb-1">
-          <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-          <span className="text-xs font-medium text-gray-700">Aurora Global DB (SQL)</span>
-        </div>
-        {sqlSteps.length > 0
-          ? <StepRow steps={sqlSteps} color="text-blue-600" />
-          : <p className="text-xs text-gray-400 italic">Run SQL latency test to see timeline</p>}
+      {/* step labels */}
+      <div className="flex items-center">
+        {steps.map((s, i) => (
+          <div key={i} className="flex items-center flex-1 min-w-0">
+            <span className="text-[10px] text-gray-400 text-center flex-1 leading-tight">{s.label}</span>
+            {i < steps.length - 1 && <div className="w-4 flex-shrink-0"></div>}
+          </div>
+        ))}
       </div>
+      {/* SQL row */}
       <div>
-        <div className="flex items-center gap-2 mb-1">
-          <div className="w-3 h-3 rounded-full bg-green-500"></div>
-          <span className="text-xs font-medium text-gray-700">DynamoDB Global Tables (NoSQL)</span>
+        <div className="flex items-center gap-1.5 mb-1">
+          <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0"></div>
+          <span className="text-[10px] font-medium text-gray-500">Aurora (SQL)</span>
         </div>
-        {nosqlSteps.length > 0
-          ? <StepRow steps={nosqlSteps} color="text-green-600" />
-          : <p className="text-xs text-gray-400 italic">Run NoSQL latency test to see timeline</p>}
+        <Row color="text-blue-600" dotColor="bg-blue-400" values={steps.map(st => ({ val: st.sql, bad: st.sqlBad }))} />
+      </div>
+      {/* NoSQL row */}
+      <div>
+        <div className="flex items-center gap-1.5 mb-1">
+          <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0"></div>
+          <span className="text-[10px] font-medium text-gray-500">DynamoDB (NoSQL)</span>
+        </div>
+        <Row color="text-green-600" dotColor="bg-green-400" values={steps.map(st => ({ val: st.nosql }))} />
       </div>
     </div>
   )
@@ -435,297 +393,263 @@ export default function OverviewPage({ sqlPrimaryUrl, sqlSecondaryUrl, nosqlPrim
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="px-6 pt-6 pb-4 bg-white border-b border-gray-100">
-        <h1 className="text-2xl font-bold text-gray-900">Active-Active Multi-Region: SQL vs NoSQL</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Event Ticket Booking System</h1>
         <p className="text-gray-500 text-sm mt-1">
-          Run the same workload from different regions and see how SQL (Aurora Global DB) and NoSQL (DynamoDB Global Tables) handle writes.
+          Book tickets using SQL (Aurora Global DB) or NoSQL (DynamoDB Global Tables) — each from any region. See how each database handles the write under the hood.
         </p>
         <div className="flex gap-3 mt-3">
-          <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-medium">&lt; 10ms — Local write</span>
-          <span className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-xs font-medium">10–50ms — Acceptable</span>
-          <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-medium">&gt; 50ms — Forwarding overhead</span>
+          <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">🗄 Aurora Global DB — Relational</span>
+          <span className="bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-medium">⚡ DynamoDB Global Tables — Distributed</span>
         </div>
       </div>
 
       <div className="flex-1 overflow-auto p-6 bg-gray-50">
-        {/* Booking Pattern Explainer */}
-        <div className="mb-4 bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-          <h2 className="text-sm font-semibold text-gray-700 mb-3">How Ticket Booking Works Across Regions</h2>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="bg-orange-50 border border-orange-100 rounded-lg p-3">
-              <p className="text-xs font-semibold text-orange-700 mb-1">⚡ Sync Booking (SQL)</p>
-              <p className="text-xs text-gray-600 leading-relaxed">User waits for the full DB write to complete. From a secondary region the write is <span className="font-medium text-orange-600">forwarded to the primary</span>, adding ~80ms cross-region overhead before confirmation is returned.</p>
-            </div>
-            <div className="bg-green-50 border border-green-100 rounded-lg p-3">
-              <p className="text-xs font-semibold text-green-700 mb-1">📨 Async Booking (SQL + SQS)</p>
-              <p className="text-xs text-gray-600 leading-relaxed">The write is <span className="font-medium text-green-600">queued instantly (~3ms)</span> and the user gets an immediate acknowledgment. A Lambda consumer processes it in ~2s. The frontend auto-polls until the status flips to confirmed.</p>
-            </div>
-            <div className="bg-purple-50 border border-purple-100 rounded-lg p-3">
-              <p className="text-xs font-semibold text-purple-700 mb-1">🔒 Conditional Write (DynamoDB)</p>
-              <p className="text-xs text-gray-600 leading-relaxed">DynamoDB uses a <span className="font-medium text-purple-600">conditional write</span> to atomically reserve the ticket. If two regions race to book the same seat, the second write is rejected locally — no cross-region round trip needed.</p>
-            </div>
-          </div>
-        </div>
 
-        {/* Top cards */}
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          {/* SQL Card */}
+        {/* ── CUSTOMER BOOKING UI ── */}
+        <div className="grid grid-cols-2 gap-4 mb-6">
+
+          {/* Aurora booking card — no tech labels */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-            <div className="flex items-start justify-between mb-3">
+            <div className="flex items-start justify-between mb-4">
               <div>
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-blue-600 text-lg">🗄</span>
-                  <h2 className="text-base font-bold text-blue-600">SQL — Aurora Global DB</h2>
-                </div>
-                <p className="text-xs text-gray-500">Amazon Aurora Global Database</p>
-              </div>
-              <ConnectedBadge />
-            </div>
-            <div className="flex items-center gap-4 mb-3 text-xs text-gray-500">
-              <span>Primary Writer: <strong className="text-gray-700">🇺🇸 US-East-1 (N. Virginia)</strong></span>
-              <span>Selected Region:
-                <select
-                  value={sqlRegion}
-                  onChange={e => { setSqlRegion(e.target.value as "primary" | "secondary"); setSqlResult(null); setSqlBooking(null) }}
-                  className="ml-1 border border-gray-200 rounded px-1 py-0.5 text-xs text-gray-700 bg-white"
-                >
-                  <option value="primary">🇺🇸 US-East-1 (N. Virginia)</option>
-                  <option value="secondary">🇺🇸 US-East-2 (Ohio)</option>
-                </select>
-              </span>
-            </div>
-            <div className="grid grid-cols-4 gap-3 mb-4">
-              <div className="text-center">
-                <div className="text-xs text-gray-500 mb-1">Write Behavior</div>
-                <span className={`text-xs px-2 py-1 rounded font-medium ${sqlRegion === "secondary" ? "bg-orange-100 text-orange-700" : "bg-green-100 text-green-700"}`}>
-                  {sqlRegion === "secondary" ? "Forwarded to Primary" : "Local Write"}
-                </span>
-              </div>
-              <div className="text-center">
-                <div className="text-xs text-gray-500 mb-1">Avg Latency</div>
-                <div className="text-sm font-bold"><LatencyValue ms={sqlResult?.avg_write_ms ?? null} /></div>
-                {sqlResult && <div className="text-xs text-gray-400">p95 {sqlResult.p95_write_ms} ms | p99 {sqlResult.p99_write_ms} ms</div>}
-              </div>
-              <div className="text-center">
-                <div className="text-xs text-gray-500 mb-1">Replication Lag</div>
-                <div className="text-sm font-bold text-gray-700">{sqlResult ? `${sqlResult.replication_lag_ms} ms` : "—"}</div>
-              </div>
-              <div className="text-center">
-                <div className="text-xs text-gray-500 mb-1">Round Trips</div>
-                <div className="text-sm font-bold text-gray-700">{sqlResult !== null ? sqlResult.round_trips : "—"}</div>
-                <div className="text-xs text-gray-400">{sqlResult && sqlResult.round_trips > 0 ? "(Writer forwarding)" : sqlResult ? "(Local)" : ""}</div>
+                <h2 className="text-base font-bold text-gray-800 mb-0.5">Reserve with Aurora</h2>
+                <p className="text-xs text-gray-400">Relational</p>
               </div>
             </div>
-            <button
-              onClick={runSqlTest}
-              disabled={sqlLoading}
-              className="w-full py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 mb-2"
-            >
-              {sqlLoading ? "Running..." : "Run Write Latency Test (10 samples)"}
-            </button>
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-gray-500 mb-1">Book from region</label>
+              <select
+                value={sqlRegion}
+                onChange={e => { setSqlRegion(e.target.value as "primary" | "secondary"); setSqlResult(null); setSqlBooking(null) }}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
+              >
+                <option value="primary">🇺🇸 US-East-1 — N. Virginia</option>
+                <option value="secondary">🇺🇸 US-East-2 — Ohio</option>
+              </select>
+            </div>
             <div className="flex gap-2">
               <button
                 onClick={() => bookSql("sync")}
                 disabled={sqlLoading}
-                className="flex-1 py-1.5 bg-orange-500 text-white rounded text-xs font-medium hover:bg-orange-600 disabled:opacity-50"
+                className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors"
               >
-                ⚡ Book (sync)<br /><span className="text-orange-200 font-normal">Immediate confirmation</span>
+                {sqlLoading ? "Reserving…" : "Reserve Ticket"}
               </button>
               <button
                 onClick={() => bookSql("async")}
                 disabled={sqlLoading}
-                className="flex-1 py-1.5 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700 disabled:opacity-50"
+                className="flex-1 py-2.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-sm font-semibold hover:bg-blue-100 disabled:opacity-50 transition-colors"
               >
-                📨 Book (async / SQS)<br /><span className="text-green-200 font-normal">Queued via SQS (~3ms)</span>
+                {sqlLoading ? "Queuing…" : "Reserve (Queued)"}
               </button>
             </div>
             {sqlBooking && (
-              <div className={`mt-2 p-2 rounded text-xs ${sqlBooking.error ? "bg-red-50 text-red-700" : "bg-green-50 text-green-800"}`}>
-                Status: <strong>{sqlBooking.status ?? sqlBooking.error}</strong>
-                {sqlBooking.user_wait_ms !== undefined && <span className="ml-2">User waited: {sqlBooking.user_wait_ms} ms</span>}
-                {(sqlBooking.warning ?? sqlBooking.note) && <span className="ml-2 text-gray-500 italic">{sqlBooking.warning ?? sqlBooking.note}</span>}
+              <div className={`mt-3 p-3 rounded-lg text-sm flex items-start gap-2 ${sqlBooking.error ? "bg-red-50 border border-red-100" : sqlBooking.status === "pending" ? "bg-yellow-50 border border-yellow-100" : "bg-green-50 border border-green-100"}`}>
+                <span className="text-base leading-none mt-0.5">
+                  {sqlBooking.error ? "✗" : sqlBooking.status === "pending" ? "⏳" : "✓"}
+                </span>
+                <div>
+                  <p className={`font-semibold ${sqlBooking.error ? "text-red-700" : sqlBooking.status === "pending" ? "text-yellow-700" : "text-green-700"}`}>
+                    {sqlBooking.error ? "Booking failed" : sqlBooking.status === "pending" ? "Booking in progress…" : "Ticket Reserved!"}
+                  </p>
+                  {sqlBooking.booking_id && <p className="text-xs text-gray-400 mt-0.5">Ref: {sqlBooking.booking_id.slice(0, 8).toUpperCase()}</p>}
+                  {sqlBooking.error && <p className="text-xs text-red-500 mt-0.5">{sqlBooking.error}</p>}
+                </div>
               </div>
             )}
           </div>
 
-          {/* NoSQL Card */}
+          {/* DynamoDB booking card — no tech labels */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-            <div className="flex items-start justify-between mb-3">
+            <div className="flex items-start justify-between mb-4">
               <div>
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-green-600 text-lg">⚡</span>
-                  <h2 className="text-base font-bold text-green-600">NoSQL — DynamoDB Global Tables</h2>
-                </div>
-                <p className="text-xs text-gray-500">Amazon DynamoDB Global Tables</p>
-              </div>
-              <ConnectedBadge />
-            </div>
-            <div className="flex items-center gap-4 mb-3 text-xs text-gray-500">
-              <span>Selected Region:
-                <select
-                  value={nosqlRegion}
-                  onChange={e => { setNosqlRegion(e.target.value as "primary" | "secondary"); setNosqlResult(null); setNosqlBooking(null) }}
-                  className="ml-1 border border-gray-200 rounded px-1 py-0.5 text-xs text-gray-700 bg-white"
-                >
-                  <option value="primary">🇺🇸 US-East-1 (N. Virginia)</option>
-                  <option value="secondary">🇺🇸 US-East-2 (Ohio)</option>
-                </select>
-              </span>
-              <span>Replication: <strong className="text-green-600">Multi-region (Active-Active)</strong></span>
-            </div>
-            <div className="grid grid-cols-4 gap-3 mb-4">
-              <div className="text-center">
-                <div className="text-xs text-gray-500 mb-1">Write Behavior</div>
-                <span className="text-xs px-2 py-1 rounded font-medium bg-green-100 text-green-700">Local Write</span>
-              </div>
-              <div className="text-center">
-                <div className="text-xs text-gray-500 mb-1">Avg Latency</div>
-                <div className="text-sm font-bold"><LatencyValue ms={nosqlResult?.avg_write_ms ?? null} /></div>
-                {nosqlResult && <div className="text-xs text-gray-400">p95 {nosqlResult.p95_write_ms} ms | p99 {nosqlResult.p99_write_ms} ms</div>}
-              </div>
-              <div className="text-center">
-                <div className="text-xs text-gray-500 mb-1">Replication Lag</div>
-                <div className="text-sm font-bold text-gray-700">{nosqlResult ? `${nosqlResult.replication_lag_ms} ms` : "—"}</div>
-              </div>
-              <div className="text-center">
-                <div className="text-xs text-gray-500 mb-1">Round Trips</div>
-                <div className="text-sm font-bold text-gray-700">{nosqlResult !== null ? nosqlResult.round_trips : "—"}</div>
-                <div className="text-xs text-gray-400">{nosqlResult ? "(No forwarding)" : ""}</div>
+                <h2 className="text-base font-bold text-gray-800 mb-0.5">Reserve with DynamoDB</h2>
+                <p className="text-xs text-gray-400">Distributed</p>
               </div>
             </div>
-            <button
-              onClick={runNosqlTest}
-              disabled={nosqlLoading}
-              className="w-full py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 mb-2"
-            >
-              {nosqlLoading ? "Running..." : "Run Write Latency Test (10 samples)"}
-            </button>
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-gray-500 mb-1">Book from region</label>
+              <select
+                value={nosqlRegion}
+                onChange={e => { setNosqlRegion(e.target.value as "primary" | "secondary"); setNosqlResult(null); setNosqlBooking(null) }}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-green-100"
+              >
+                <option value="primary">🇺🇸 US-East-1 — N. Virginia</option>
+                <option value="secondary">🇺🇸 US-East-2 — Ohio</option>
+              </select>
+            </div>
             <button
               onClick={bookNosql}
               disabled={nosqlLoading}
-              className="w-full py-1.5 bg-orange-500 text-white rounded text-xs font-medium hover:bg-orange-600 disabled:opacity-50"
+              className="w-full py-2.5 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors"
             >
-              ⚡ Book (sync) — Immediate confirmation (local)
+              {nosqlLoading ? "Reserving…" : "Reserve Ticket"}
             </button>
             {nosqlBooking && (
-              <div className={`mt-2 p-2 rounded text-xs ${nosqlBooking.error ? "bg-red-50 text-red-700" : "bg-green-50 text-green-800"}`}>
-                Status: <strong>{
-                  (nosqlBooking as any).success === true
-                    ? (nosqlBooking.status ?? "confirmed")
-                    : ((nosqlBooking as any).error ?? "error")
-                }</strong>
+              <div className={`mt-3 p-3 rounded-lg text-sm flex items-start gap-2 ${(nosqlBooking as any).success === false ? "bg-red-50 border border-red-100" : "bg-green-50 border border-green-100"}`}>
+                <span className="text-base leading-none mt-0.5">
+                  {(nosqlBooking as any).success === false ? "✗" : "✓"}
+                </span>
+                <div>
+                  <p className={`font-semibold ${(nosqlBooking as any).success === false ? "text-red-700" : "text-green-700"}`}>
+                    {(nosqlBooking as any).success === false ? "Booking failed" : "Ticket Reserved!"}
+                  </p>
+                  {(nosqlBooking as any).booking_id && <p className="text-xs text-gray-400 mt-0.5">Ref: {((nosqlBooking as any).booking_id as string).slice(0, 8).toUpperCase()}</p>}
+                  {(nosqlBooking as any).success === false && <p className="text-xs text-red-500 mt-0.5">{(nosqlBooking as any).error}</p>}
+                </div>
               </div>
             )}
           </div>
         </div>
 
-        {/* Bottom 3-column grid — flat 6-cell grid so rows align across columns */}
-        <div className="grid grid-cols-3 gap-4">
-          {/* Row 1, Col 1: Write Flow */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">Write Flow Visualization</h3>
-            <div className="mb-2">
-              <p className="text-xs font-medium text-blue-600 mb-1">Aurora Global DB (Write Forwarding)</p>
+        {/* Section divider */}
+        <div className="flex items-center gap-3 mb-6">
+          <div className="flex-1 h-px bg-gray-200"></div>
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-full shadow-sm">
+            <span className="text-gray-400 text-xs">↓</span>
+            <span className="text-xs font-medium text-gray-500">What happens when you book</span>
+            <span className="text-gray-400 text-xs">↓</span>
+          </div>
+          <div className="flex-1 h-px bg-gray-200"></div>
+        </div>
+
+        {/* ── TECHNICAL BREAKDOWN: 2-column SQL vs NoSQL ── */}
+        <div className="grid grid-cols-2 gap-4 mb-4">
+
+          {/* SQL Column */}
+          <div className="flex flex-col gap-4">
+            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-blue-600 text-base">🗄</span>
+                <h3 className="text-sm font-bold text-blue-700">Aurora Global Database (SQL)</h3>
+              </div>
+              <p className="text-sm text-blue-600 mb-3 leading-relaxed">
+                Single writer in <strong>us-east-1</strong>. Secondary regions forward writes to the primary — user waits for the full round trip before getting a confirmation.
+              </p>
               <WriteFlowDiagram isSql={true} isSecondary={sqlRegion === "secondary"} />
-            </div>
-            <div>
-              <p className="text-xs font-medium text-green-600 mb-1">DynamoDB Global Tables (Local Write)</p>
-              <WriteFlowDiagram isSql={false} isSecondary={nosqlRegion === "secondary"} />
+              <button
+                onClick={runSqlTest}
+                disabled={sqlLoading}
+                className="mt-3 w-full py-2 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              >
+                {sqlLoading ? "Running…" : "Run Write Latency Test (10 samples)"}
+              </button>
+              {sqlResult && (
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <div className="bg-white rounded-lg p-2 text-center border border-blue-100">
+                    <div className="text-gray-400 mb-0.5">Avg latency</div>
+                    <div className="font-bold text-blue-700">{sqlResult.avg_write_ms} ms</div>
+                  </div>
+                  <div className="bg-white rounded-lg p-2 text-center border border-blue-100">
+                    <div className="text-gray-400 mb-0.5">p95 latency</div>
+                    <div className="font-bold text-blue-700">{sqlResult.p95_write_ms} ms</div>
+                  </div>
+                  <div className="bg-white rounded-lg p-2 text-center border border-blue-100">
+                    <div className="text-gray-400 mb-0.5">Round trips</div>
+                    <div className={`font-bold ${sqlResult.round_trips > 0 ? "text-orange-600" : "text-green-600"}`}>{sqlResult.round_trips}</div>
+                  </div>
+                  <div className="bg-white rounded-lg p-2 text-center border border-blue-100">
+                    <div className="text-gray-400 mb-0.5">Replication lag</div>
+                    <div className="font-bold text-blue-700">{sqlResult.replication_lag_ms} ms</div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Row 1, Col 2: Live Latency */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">Live Latency (Last 10 Samples)</h3>
-            {(sqlResult?.latency_samples?.length ?? 0) > 0 || (nosqlResult?.latency_samples?.length ?? 0) > 0 ? (
-              <>
+          {/* NoSQL Column */}
+          <div className="flex flex-col gap-4">
+            <div className="bg-green-50 border border-green-100 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-green-600 text-base">⚡</span>
+                <h3 className="text-sm font-bold text-green-700">DynamoDB Global Tables (NoSQL)</h3>
+              </div>
+              <p className="text-sm text-green-600 mb-3 leading-relaxed">
+                Every region is a <strong>full writer</strong>. Writes commit locally, then replicate asynchronously. Conflicts are caught atomically via conditional writes — no coordination needed.
+              </p>
+              <WriteFlowDiagram isSql={false} isSecondary={nosqlRegion === "secondary"} />
+              <button
+                onClick={runNosqlTest}
+                disabled={nosqlLoading}
+                className="mt-3 w-full py-2 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
+              >
+                {nosqlLoading ? "Running…" : "Run Write Latency Test (10 samples)"}
+              </button>
+              {nosqlResult && (
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <div className="bg-white rounded-lg p-2 text-center border border-green-100">
+                    <div className="text-gray-400 mb-0.5">Avg latency</div>
+                    <div className="font-bold text-green-700">{nosqlResult.avg_write_ms} ms</div>
+                  </div>
+                  <div className="bg-white rounded-lg p-2 text-center border border-green-100">
+                    <div className="text-gray-400 mb-0.5">p95 latency</div>
+                    <div className="font-bold text-green-700">{nosqlResult.p95_write_ms} ms</div>
+                  </div>
+                  <div className="bg-white rounded-lg p-2 text-center border border-green-100">
+                    <div className="text-gray-400 mb-0.5">Round trips</div>
+                    <div className="font-bold text-green-600">{nosqlResult.round_trips}</div>
+                  </div>
+                  <div className="bg-white rounded-lg p-2 text-center border border-green-100">
+                    <div className="text-gray-400 mb-0.5">Replication lag</div>
+                    <div className="font-bold text-green-700">{nosqlResult.replication_lag_ms} ms</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Live Latency — full width */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-4">
+          <h3 className="text-sm font-semibold text-gray-700 mb-2">Live Latency — Last 10 Samples</h3>
+          {(sqlResult?.latency_samples?.length ?? 0) > 0 || (nosqlResult?.latency_samples?.length ?? 0) > 0 ? (
+            <>
+              <div className="px-2">
                 <LatencyLineChart
                   sqlSamples={sqlResult?.latency_samples ?? []}
                   nosqlSamples={nosqlResult?.latency_samples ?? []}
                 />
-                <div className="flex gap-4 mt-1">
-                  <div className="flex items-center gap-1"><div className="w-3 h-0.5 bg-blue-500"></div><span className="text-xs text-gray-500">Aurora (SQL)</span></div>
-                  <div className="flex items-center gap-1"><div className="w-3 h-0.5 bg-green-500"></div><span className="text-xs text-gray-500">DynamoDB (NoSQL)</span></div>
-                </div>
-              </>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-10 text-center text-gray-400">
-                <svg className="w-8 h-8 mb-2 opacity-30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                <p className="text-xs">Run a latency test above to see data</p>
               </div>
-            )}
-          </div>
-
-          {/* Row 1, Col 3: Latency Results */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">Latency Results (Latest Run)</h3>
-            <ComparisonTable sqlResult={sqlResult} nosqlResult={nosqlResult} />
-          </div>
-
-          {/* Row 2, Col 1: Timeline */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-            <h3 className="text-sm font-semibold text-gray-700 mb-3">Timeline (Single Write Request)</h3>
-            <TimelineViz sqlResult={sqlResult} nosqlResult={nosqlResult} sqlRegion={sqlRegion} />
-          </div>
-
-          {/* Row 2, Col 2: Architecture Overview */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-            <h3 className="text-sm font-semibold text-gray-700 mb-3">Architecture Overview</h3>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div>
-                <p className="font-medium text-blue-600 mb-1">Aurora Global Database</p>
-                <div className="border border-blue-100 rounded p-2 bg-blue-50 text-center text-xs text-gray-600">
-                  App<br />↓<br />
-                  <span className="text-blue-700 font-medium">US-East-2 (Reader)</span><br />
-                  ↓ Write Forwarding<br />
-                  <span className="text-blue-700 font-medium">US-East-1 (Writer)</span><br />
-                  Shared Storage
-                </div>
+              <div className="flex gap-4 mt-1 px-2">
+                <div className="flex items-center gap-1"><div className="w-3 h-0.5 bg-blue-500"></div><span className="text-xs text-gray-500">Aurora (SQL)</span></div>
+                <div className="flex items-center gap-1"><div className="w-3 h-0.5 bg-green-500"></div><span className="text-xs text-gray-500">DynamoDB (NoSQL)</span></div>
               </div>
-              <div>
-                <p className="font-medium text-green-600 mb-1">DynamoDB Global Tables</p>
-                <div className="border border-green-100 rounded p-2 bg-green-50 text-center text-xs text-gray-600">
-                  App<br />↓<br />
-                  <span className="text-green-700 font-medium">US-East-2 (RW)</span><br />
-                  ↕ Async Replication<br />
-                  <span className="text-green-700 font-medium">US-East-1 (RW)</span><br />
-                  Fully Managed Multi-Master
-                </div>
-              </div>
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-8 text-center text-gray-400">
+              <svg className="w-8 h-8 mb-2 opacity-30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              <p className="text-xs">Run a latency test in either column above to see data</p>
             </div>
-          </div>
-
-          {/* Row 2, Col 3: Key Takeaways */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">Key Takeaways</h3>
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div>
-                <p className="font-medium text-blue-600 mb-1 flex items-center gap-1">🗄 Aurora Global DB (SQL)</p>
-                <ul className="text-gray-600 space-y-1 list-disc list-inside">
-                  <li>Strong consistency with ACID</li>
-                  <li>Cross-region writes forwarded to primary</li>
-                  <li>Higher latency for remote writes</li>
-                  <li>Ideal for transactional workloads</li>
-                </ul>
-              </div>
-              <div>
-                <p className="font-medium text-green-600 mb-1 flex items-center gap-1">⚡ DynamoDB Global Tables</p>
-                <ul className="text-gray-600 space-y-1 list-disc list-inside">
-                  <li>Local writes with low latency</li>
-                  <li>Async replication across regions</li>
-                  <li>Eventually consistent</li>
-                  <li>Ideal for high-scale, low-latency</li>
-                </ul>
-              </div>
-            </div>
-            <p className="mt-3 text-xs text-gray-500 italic">
-              ☆ Choose based on your priority: Consistency (SQL) vs Low Latency & Availability (NoSQL)
-            </p>
-          </div>
+          )}
         </div>
 
-        {/* Footer */}
-        <div className="mt-4 flex items-center justify-between text-xs text-gray-400">
-          <div className="flex items-center gap-4">
+        {/* Write Timeline + Latency Comparison + Key Traits — flat 2×2 grid so rows align */}
+        <div className="grid grid-cols-2 gap-4 mt-4">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+            <h3 className="text-sm font-semibold text-gray-700 mb-8">Write Timeline</h3>
+            <TimelineViz sqlResult={sqlResult} nosqlResult={nosqlResult} sqlRegion={sqlRegion} />
+          </div>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">Latency Comparison</h3>
+            <ComparisonTable sqlResult={sqlResult} nosqlResult={nosqlResult} />
+          </div>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Aurora — Key Traits</h3>
+            <ul className="text-xs text-gray-600 space-y-1.5">
+              <li className="flex items-start gap-1.5"><span className="text-blue-400 mt-0.5">•</span>Strong consistency — ACID transactions guaranteed</li>
+              <li className="flex items-start gap-1.5"><span className="text-blue-400 mt-0.5">•</span>Cross-region writes forwarded to the primary writer</li>
+              <li className="flex items-start gap-1.5"><span className="text-blue-400 mt-0.5">•</span>Queued (async) booking hides the latency from users</li>
+              <li className="flex items-start gap-1.5"><span className="text-blue-400 mt-0.5">•</span>Best for financial or transactional workloads</li>
+            </ul>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">DynamoDB — Key Traits</h3>
+            <ul className="text-xs text-gray-600 space-y-1.5">
+              <li className="flex items-start gap-1.5"><span className="text-green-400 mt-0.5">•</span>Always-local writes — no cross-region round trip</li>
+              <li className="flex items-start gap-1.5"><span className="text-green-400 mt-0.5">•</span>Async replication (~300ms lag) across all regions</li>
+              <li className="flex items-start gap-1.5"><span className="text-green-400 mt-0.5">•</span>Conditional writes prevent double-booking atomically</li>
+              <li className="flex items-start gap-1.5"><span className="text-green-400 mt-0.5">•</span>Best for high-scale, low-latency global workloads</li>
+            </ul>
           </div>
         </div>
       </div>

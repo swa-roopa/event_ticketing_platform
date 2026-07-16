@@ -1,4 +1,5 @@
 "use client"
+import Image from "next/image"
 
 type Page = "overview" | "sql" | "nosql" | "comparison" | "architecture" | "timeline" | "about"
 
@@ -7,22 +8,22 @@ type Props = {
   onNavigate: (page: Page) => void
 }
 
-const navItems: { id: Page; label: string; icon: string }[] = [
-  { id: "overview", label: "Overview", icon: "⊞" },
-  { id: "sql", label: "SQL Test", icon: "🗄" },
-  { id: "nosql", label: "NoSQL Test", icon: "⚡" },
-  { id: "comparison", label: "Comparison", icon: "📊" },
-  { id: "architecture", label: "Architecture", icon: "🏗" },
-  { id: "timeline", label: "Timeline", icon: "⏱" },
-  { id: "about", label: "About", icon: "ℹ" },
+const navItems: { id: Page; label: string; icon: string; img?: string }[] = [
+  { id: "overview", label: "Overview", icon: "⊞", img: "/overview-icon.png" },
+  { id: "sql", label: "SQL Test", icon: "🗄", img: "/sql-icon.png" },
+  { id: "nosql", label: "NoSQL Test", icon: "⚡", img: "/nosql-icon.png" },
+  { id: "comparison", label: "Comparison", icon: "📊", img: "/comparison-icon.png" },
+  { id: "architecture", label: "Architecture", icon: "🏗", img: "/architecture-icon.png" },
+  { id: "timeline", label: "Timeline", icon: "⏱", img: "/timeline-icon.png" },
+  { id: "about", label: "About", icon: "ℹ", img: "/about-icon.png" },
 ]
 
 export default function Sidebar({ active, onNavigate }: Props) {
   return (
     <aside className="w-60 min-h-screen bg-gray-900 flex flex-col shrink-0">
       <div className="px-6 py-5 border-b border-gray-700">
-        <div className="flex items-center gap-2">
-          <span className="text-blue-400 text-xl">🌐</span>
+        <div className="flex items-center gap-3">
+          <Image src="/logo.png" alt="GlobalTix" width={32} height={32} className="rounded" />
           <span className="text-white font-semibold text-sm leading-tight">GlobalTix<br /><span className="text-gray-400 font-normal text-xs">Multi-Region POC</span></span>
         </div>
       </div>
@@ -37,7 +38,13 @@ export default function Sidebar({ active, onNavigate }: Props) {
                 : "text-gray-400 hover:bg-gray-800 hover:text-white"
             }`}
           >
-            <span className="text-base w-5 text-center">{item.icon}</span>
+            {item.img ? (
+              <span className="w-5 h-5 flex items-center justify-center rounded bg-white shrink-0">
+                <Image src={item.img} alt="" width={16} height={16} />
+              </span>
+            ) : (
+              <span className="text-base w-5 text-center">{item.icon}</span>
+            )}
             {item.label}
           </button>
         ))}
